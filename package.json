@@ -10,8 +10,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/simple-peer": "^9.11.8",
+    "peerjs": "^1.5.4",
+    "qr-scanner": "^1.4.2",
+    "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "simple-peer": "^9.11.1",
+    "simple-peer-light": "^9.10.0",
+    "tiny-simple-peer": "^10.1.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
