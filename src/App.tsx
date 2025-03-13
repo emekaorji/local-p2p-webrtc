@@ -9,12 +9,12 @@ const App: React.FC = () => {
     <div>
       <h1>Local Wifi P2P WebRTC Connection</h1>
       {!role ? (
-        <>
+        <div className='RoleSelection'>
           <button onClick={() => setRole('initiator')}>
             Start as Initiator
           </button>
           <button onClick={() => setRole('receiver')}>Start as Receiver</button>
-        </>
+        </div>
       ) : role === 'initiator' ? (
         <Initiator />
       ) : (

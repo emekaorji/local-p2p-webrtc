@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import QrScanner from 'qr-scanner';
+import { Dialog, DialogContent, DialogTrigger } from './dialog';
+import { QrCodeScanner } from 'react-simple-qr-code-scanner';
 
 const Initiator: React.FC = () => {
   const [peerConnection, setPeerConnection] =
     useState<RTCPeerConnection | null>(null);
   const [offer, setOffer] = useState<string | null>(null);
   const [dataChannel, setDataChannel] = useState<RTCDataChannel | null>(null);
-  const [message, setMessage] = useState('');
+  const [messageInput, setMessageInput] = useState('');
   const [messages, setMessages] = useState<string[]>([]);
-  const [scanning, setScanning] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     const pc = new RTCPeerConnection();
@@ -20,6 +21,10 @@ const Initiator: React.FC = () => {
     };
 
     setDataChannel(dc);
+
+    pc.onconnectionstatechange = () => {
+      setIsConnected(pc.connectionState === 'connected');
+    };
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -41,72 +46,72 @@ const Initiator: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    if (scanning) {
-      const scanner = new QrScanner(
-        document.getElementById('video') as HTMLVideoElement,
-        (result) => {
-          if (result) {
-            handleAnswerScan(result.data);
-            scanner.stop();
-            setScanning(false);
-          }
-        },
-        {
-          highlightScanRegion: true,
-          highlightCodeOutline: true,
-        }
-      );
-
-      scanner.start().catch((err) => {
-        console.error('Failed to start scanner:', err);
-        setScanning(false);
-      });
-
-      return () => {
-        scanner.stop();
-      };
-    }
-  }, [scanning]);
-
   const sendMessage = () => {
     if (dataChannel) {
-      dataChannel.send(message);
-      setMessages((prev) => [...prev, `Sent: ${message}`]);
-      setMessage('');
+      dataChannel.send(messageInput);
+      setMessages((prev) => [...prev, `Sent: ${messageInput}`]);
+      setMessageInput('');
     }
   };
 
   return (
     <div>
       <h2>Initiator</h2>
-      {offer ? (
-        <>
-          <p>Scan this QR code with the Receiver:</p>
-          <QRCodeSVG value={offer} />
-          <button onClick={() => setScanning(true)}>Scan Answer QR Code</button>
-        </>
-      ) : (
+      {!offer ? (
         <p>Generating Offer...</p>
-      )}
-
-      {scanning && (
-        <div>
-          <video id='video' style={{ width: '300px', height: '300px' }}></video>
-          <button onClick={() => setScanning(false)}>Stop Scanning</button>
-        </div>
-      )}
-
-      {dataChannel && (
+      ) : (
         <>
+          <p>Initiator's QR Code</p>
+          <div>
+            <QRCodeSVG value={offer} size={256} />
+          </div>
+          <Dialog>
+            <DialogTrigger>Scan Receiver's QR Code</DialogTrigger>
+            <DialogContent title="Scan Receiver's QR Code" description=''>
+              <QrCodeScanner
+                onResult={(result, rawResult) => {
+                  console.log(result);
+                  console.log(rawResult.getText());
+                  handleAnswerScan(rawResult.getText());
+                }}
+                onError={(error) => {
+                  console.log(error);
+                }}
+                facingMode={'environment'} // Or "user"
+              >
+                {(videoElement) => (
+                  <div
+                    style={{
+                      borderColor: 'rgb(147 197 253)',
+                      borderWidth: '4px',
+                      width: '100%',
+                    }}>
+                    <video
+                      ref={videoElement}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '1rem',
+                      }}
+                    />
+                  </div>
+                )}
+              </QrCodeScanner>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
+
+      {dataChannel && isConnected && (
+        <div>
           <input
             type='text'
             placeholder='Type a message'
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            value={messageInput}
+            onChange={(e) => setMessageInput(e.target.value)}
           />
           <button onClick={sendMessage}>Send</button>
-        </>
+        </div>
       )}
 
       <ul>

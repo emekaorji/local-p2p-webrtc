@@ -1,44 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import QrScanner from 'qr-scanner';
+import { Dialog, DialogContent, DialogTrigger } from './dialog';
+import { QrCodeScanner } from 'react-simple-qr-code-scanner';
 
 const Receiver: React.FC = () => {
   const [peerConnection, setPeerConnection] =
     useState<RTCPeerConnection | null>(null);
-  const [offer, setOffer] = useState<string | null>(null);
   const [answer, setAnswer] = useState<string | null>(null);
   const [dataChannel, setDataChannel] = useState<RTCDataChannel | null>(null);
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<string[]>([]);
-  const [scanning, setScanning] = useState(false);
-
-  useEffect(() => {
-    if (scanning) {
-      const scanner = new QrScanner(
-        document.getElementById('video') as HTMLVideoElement,
-        (result) => {
-          if (result) {
-            handleOfferScan(result.data);
-            scanner.stop();
-            setScanning(false);
-          }
-        },
-        {
-          highlightScanRegion: true,
-          highlightCodeOutline: true,
-        }
-      );
-
-      scanner.start().catch((err) => {
-        console.error('Failed to start scanner:', err);
-        setScanning(false);
-      });
-
-      return () => {
-        scanner.stop();
-      };
-    }
-  }, [scanning]);
+  const [isConnected, setIsConnected] = useState(false);
 
   const handleOfferScan = (scannedOffer: string) => {
     const pc = new RTCPeerConnection();
@@ -49,6 +21,10 @@ const Receiver: React.FC = () => {
         setMessages((prev) => [...prev, `Received: ${e.data}`]);
       };
       setDataChannel(dc);
+    };
+
+    pc.onconnectionstatechange = () => {
+      setIsConnected(pc.connectionState === 'connected');
     };
 
     pc.onicecandidate = (event) => {
@@ -77,19 +53,48 @@ const Receiver: React.FC = () => {
   return (
     <div>
       <h2>Receiver</h2>
-      {!scanning ? (
-        <button onClick={() => setScanning(true)}>Scan Offer QR Code</button>
-      ) : (
-        <div>
-          <video id='video' style={{ width: '300px', height: '300px' }}></video>
-          <button onClick={() => setScanning(false)}>Stop Scanning</button>
-        </div>
-      )}
+      {!answer ? (
+        <Dialog>
+          <DialogTrigger>Scan Initiator's QR Code</DialogTrigger>
+          <DialogContent title="Scan Initiator's QR Code" description=''>
+            <QrCodeScanner
+              onResult={(result, rawResult) => {
+                console.log(result);
+                console.log(rawResult.getText());
+                handleOfferScan(rawResult.getText());
+              }}
+              onError={(error) => {
+                console.log(error);
+              }}
+              facingMode={'environment'} // Or "user"
+            >
+              {(videoElement) => (
+                <div
+                  style={{
+                    borderColor: 'rgb(147 197 253)',
+                    borderWidth: '4px',
+                    width: '100%',
+                  }}>
+                  <video
+                    ref={videoElement}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      borderRadius: '1rem',
+                    }}
+                  />
+                </div>
+              )}
+            </QrCodeScanner>
+          </DialogContent>
+        </Dialog>
+      ) : null}
 
-      {answer ? (
+      {answer && !isConnected ? (
         <>
-          <p>Send this QR code to the Initiator:</p>
+          <p>Receiver's QR Code</p>
           <QRCodeSVG value={answer} />
+          <p>Scan the QR code above on the Initiator's device</p>
         </>
       ) : null}
 
