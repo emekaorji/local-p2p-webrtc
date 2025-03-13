@@ -62,7 +62,7 @@ const Initiator: React.FC = () => {
       <h2>Initiator</h2>
       {!offer ? (
         <p>Generating Offer...</p>
-      ) : dataChannel ? null : (
+      ) : dataChannel && isConnected ? null : (
         <>
           <p>Initiator's QR Code</p>
           <div>
