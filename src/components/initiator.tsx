@@ -105,7 +105,7 @@ const Initiator: React.FC = () => {
         </>
       )}
 
-      {dataChannel && isConnected && (
+      {dataChannel && (
         <div>
           <input
             type='text'

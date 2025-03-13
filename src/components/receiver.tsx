@@ -101,17 +101,17 @@ const Receiver: React.FC = () => {
         </>
       ) : null}
 
-      {dataChannel && (
-        <>
-          <input
-            type='text'
-            placeholder='Type a message'
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-          />
-          <button onClick={sendMessage}>Send</button>
-        </>
-      )}
+      {/* {dataChannel && ( */}
+      <>
+        <input
+          type='text'
+          placeholder='Type a message'
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+        />
+        <button onClick={sendMessage}>Send</button>
+      </>
+      {/* )} */}
 
       <ul>
         {messages.map((msg, i) => (
