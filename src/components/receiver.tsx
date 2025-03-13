@@ -11,8 +11,11 @@ const Receiver: React.FC = () => {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<string[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleOfferScan = (scannedOffer: string) => {
+    setIsModalOpen(false);
+
     const pc = new RTCPeerConnection();
 
     pc.ondatachannel = (event) => {
@@ -54,7 +57,7 @@ const Receiver: React.FC = () => {
     <div>
       <h2>Receiver</h2>
       {!answer ? (
-        <Dialog>
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogTrigger>Scan Initiator's QR Code</DialogTrigger>
           <DialogContent title="Scan Initiator's QR Code" description=''>
             <QrCodeScanner

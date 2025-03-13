@@ -11,6 +11,7 @@ const Initiator: React.FC = () => {
   const [messageInput, setMessageInput] = useState('');
   const [messages, setMessages] = useState<string[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const pc = new RTCPeerConnection();
@@ -40,6 +41,8 @@ const Initiator: React.FC = () => {
   }, []);
 
   const handleAnswerScan = (scannedAnswer: string) => {
+    setIsModalOpen(false);
+
     if (peerConnection) {
       const answerDesc = new RTCSessionDescription(JSON.parse(scannedAnswer));
       peerConnection.setRemoteDescription(answerDesc);
@@ -59,13 +62,13 @@ const Initiator: React.FC = () => {
       <h2>Initiator</h2>
       {!offer ? (
         <p>Generating Offer...</p>
-      ) : (
+      ) : dataChannel ? null : (
         <>
           <p>Initiator's QR Code</p>
           <div>
             <QRCodeSVG value={offer} size={256} />
           </div>
-          <Dialog>
+          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
             <DialogTrigger>Scan Receiver's QR Code</DialogTrigger>
             <DialogContent title="Scan Receiver's QR Code" description=''>
               <QrCodeScanner
