@@ -1,125 +1,113 @@
-import React, { useState, useEffect } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { Dialog, DialogContent, DialogTrigger } from './dialog';
-import { QrCodeScanner } from 'react-simple-qr-code-scanner';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useWebRTC } from '../lib/webrtc';
 
 const Initiator: React.FC = () => {
-  const [peerConnection, setPeerConnection] =
-    useState<RTCPeerConnection | null>(null);
-  const [offer, setOffer] = useState<string | null>(null);
-  const [dataChannel, setDataChannel] = useState<RTCDataChannel | null>(null);
   const [messageInput, setMessageInput] = useState('');
-  const [messages, setMessages] = useState<string[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [offer, setOffer] = useState<string | null>(null);
+  const [answerProcessed, setAnswerProcessed] = useState(false);
 
-  useEffect(() => {
-    const pc = new RTCPeerConnection();
-    const dc = pc.createDataChannel('chat');
+  const {
+    connectionState,
+    dataChannelState,
+    error,
+    createOffer,
+    handleAnswer,
+    send,
+    messages,
+  } = useWebRTC({
+    metadata: { id: 'initiator' },
+    isInitiator: true,
+  });
 
-    dc.onmessage = (event) => {
-      setMessages((prev) => [...prev, `Received: ${event.data}`]);
-    };
+  const handleAnswerScan = async (scannedAnswer: string) => {
+    if (answerProcessed || connectionState === 'connected') {
+      console.log('Answer already processed or connection already established');
+      return;
+    }
 
-    setDataChannel(dc);
-
-    pc.onconnectionstatechange = () => {
-      setIsConnected(pc.connectionState === 'connected');
-    };
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        console.log('ICE Candidate:', event.candidate);
-      }
-    };
-
-    pc.createOffer()
-      .then((offer) => pc.setLocalDescription(offer))
-      .then(() => setOffer(JSON.stringify(pc.localDescription)));
-
-    setPeerConnection(pc);
-  }, []);
-
-  const handleAnswerScan = (scannedAnswer: string) => {
-    setIsModalOpen(false);
-
-    if (peerConnection) {
-      const answerDesc = new RTCSessionDescription(JSON.parse(scannedAnswer));
-      peerConnection.setRemoteDescription(answerDesc);
+    try {
+      const answer = JSON.parse(scannedAnswer);
+      setAnswerProcessed(true);
+      await handleAnswer(answer);
+    } catch (error) {
+      console.error('Failed to handle answer:', error);
+      setAnswerProcessed(false);
     }
   };
 
   const sendMessage = () => {
-    if (dataChannel) {
-      dataChannel.send(messageInput);
-      setMessages((prev) => [...prev, `Sent: ${messageInput}`]);
+    if (messageInput.trim()) {
+      send(messageInput);
       setMessageInput('');
     }
   };
 
+  const generateOffer = useCallback(async () => {
+    try {
+      const newOffer = await createOffer();
+      const offerString = JSON.stringify(newOffer);
+      setOffer(offerString);
+      setAnswerProcessed(false); // Reset answer processed state when generating a new offer
+    } catch (error) {
+      console.error('Failed to create offer:', error);
+    }
+  }, [createOffer]);
+
+  useEffect(() => {
+    if (connectionState === 'new') {
+      generateOffer();
+    }
+  }, [connectionState, generateOffer]);
+
+  // Reset answer processed state if connection fails
+  useEffect(() => {
+    if (connectionState === 'failed' || connectionState === 'disconnected') {
+      setAnswerProcessed(false);
+    }
+  }, [connectionState]);
+
   return (
     <div>
       <h2>Initiator</h2>
-      {!offer ? (
-        <p>Generating Offer...</p>
-      ) : dataChannel && isConnected ? null : (
+      <p>Connection State: {connectionState}</p>
+      <p>Data Channel State: {dataChannelState}</p>
+      {error && <p style={{ color: 'red' }}>Error: {error.message}</p>}
+
+      {connectionState !== 'connected' && offer && (
         <>
-          <p>Initiator's QR Code</p>
+          <p>Initiator's offer</p>
           <div>
-            <QRCodeSVG value={offer} size={256} />
+            <textarea rows={10} cols={50} defaultValue={offer} />
           </div>
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <DialogTrigger>Scan Receiver's QR Code</DialogTrigger>
-            <DialogContent title="Scan Receiver's QR Code" description=''>
-              <QrCodeScanner
-                onResult={(result, rawResult) => {
-                  console.log(result);
-                  console.log(rawResult.getText());
-                  handleAnswerScan(rawResult.getText());
-                }}
-                onError={(error) => {
-                  console.log(error);
-                }}
-                facingMode={'environment'} // Or "user"
-              >
-                {(videoElement) => (
-                  <div
-                    style={{
-                      borderColor: 'rgb(147 197 253)',
-                      borderWidth: '4px',
-                      width: '100%',
-                    }}>
-                    <video
-                      ref={videoElement}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        borderRadius: '1rem',
-                      }}
-                    />
-                  </div>
-                )}
-              </QrCodeScanner>
-            </DialogContent>
-          </Dialog>
         </>
       )}
 
-      {dataChannel && (
-        <div>
-          <input
-            type='text'
-            placeholder='Type a message'
-            value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
+      {connectionState !== 'connected' && !answerProcessed && (
+        <>
+          <p>Paste Receiver's Answer</p>
+          <textarea
+            rows={10}
+            cols={50}
+            onChange={(e) => handleAnswerScan(e.target.value)}
           />
-          <button onClick={sendMessage}>Send</button>
-        </div>
+        </>
       )}
+
+      {/* {dataChannelState === 'open' && ( */}
+      <div>
+        <input
+          type='text'
+          placeholder='Type a message'
+          value={messageInput}
+          onChange={(e) => setMessageInput(e.target.value)}
+        />
+        <button onClick={sendMessage}>Send</button>
+      </div>
+      {/* )} */}
 
       <ul>
         {messages.map((msg, i) => (
-          <li key={i}>{msg}</li>
+          <li key={i}>{msg.toString()}</li>
         ))}
       </ul>
     </div>

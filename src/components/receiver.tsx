@@ -1,63 +1,55 @@
 import React, { useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { Dialog, DialogContent, DialogTrigger } from './dialog';
-import { QrCodeScanner } from 'react-simple-qr-code-scanner';
+import { useWebRTC } from '../lib/webrtc';
 
 const Receiver: React.FC = () => {
-  const [peerConnection, setPeerConnection] =
-    useState<RTCPeerConnection | null>(null);
+  const [messageInput, setMessageInput] = useState('');
   const [answer, setAnswer] = useState<string | null>(null);
-  const [dataChannel, setDataChannel] = useState<RTCDataChannel | null>(null);
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<string[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handleOfferScan = (scannedOffer: string) => {
-    setIsModalOpen(false);
+  const {
+    connectionState,
+    dataChannelState,
+    error,
+    handleOffer,
+    send,
+    messages,
+  } = useWebRTC({
+    metadata: { id: 'receiver' },
+    isInitiator: false,
+  });
 
-    const pc = new RTCPeerConnection();
-
-    pc.ondatachannel = (event) => {
-      const dc = event.channel;
-      dc.onmessage = (e) => {
-        setMessages((prev) => [...prev, `Received: ${e.data}`]);
-      };
-      setDataChannel(dc);
-    };
-
-    pc.onconnectionstatechange = () => {
-      setIsConnected(pc.connectionState === 'connected');
-    };
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        console.log('ICE Candidate:', event.candidate);
-      }
-    };
-
-    const offerDesc = new RTCSessionDescription(JSON.parse(scannedOffer));
-    pc.setRemoteDescription(offerDesc)
-      .then(() => pc.createAnswer())
-      .then((answer) => pc.setLocalDescription(answer))
-      .then(() => setAnswer(JSON.stringify(pc.localDescription)));
-
-    setPeerConnection(pc);
+  const handleOfferScan = async (scannedOffer: string) => {
+    try {
+      const offer = JSON.parse(scannedOffer);
+      const generatedAnswer = await handleOffer(offer);
+      setAnswer(JSON.stringify(generatedAnswer));
+    } catch (err) {
+      console.error('Failed to handle offer:', err);
+    }
   };
 
   const sendMessage = () => {
-    if (dataChannel) {
-      dataChannel.send(message);
-      setMessages((prev) => [...prev, `Sent: ${message}`]);
-      setMessage('');
+    if (messageInput.trim()) {
+      send(messageInput);
+      setMessageInput('');
     }
   };
 
   return (
     <div>
       <h2>Receiver</h2>
-      {!answer ? (
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      <p>Connection State: {connectionState}</p>
+      <p>Data Channel State: {dataChannelState}</p>
+      {error && <p style={{ color: 'red' }}>Error: {error.message}</p>}
+
+      {connectionState === 'new' && (
+        <>
+          <p>Paste Initiator's Offer</p>
+          <textarea
+            rows={10}
+            cols={50}
+            onChange={(e) => handleOfferScan(e.target.value)}
+          />
+          {/* <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogTrigger>Scan Initiator's QR Code</DialogTrigger>
           <DialogContent title="Scan Initiator's QR Code" description=''>
             <QrCodeScanner
@@ -69,8 +61,7 @@ const Receiver: React.FC = () => {
               onError={(error) => {
                 console.log(error);
               }}
-              facingMode={'environment'} // Or "user"
-            >
+              facingMode={'environment'}>
               {(videoElement) => (
                 <div
                   style={{
@@ -90,32 +81,37 @@ const Receiver: React.FC = () => {
               )}
             </QrCodeScanner>
           </DialogContent>
-        </Dialog>
-      ) : null}
-
-      {answer && !isConnected ? (
-        <>
-          <p>Receiver's QR Code</p>
-          <QRCodeSVG value={answer} />
-          <p>Scan the QR code above on the Initiator's device</p>
+        </Dialog> */}
         </>
-      ) : null}
+      )}
 
-      {/* {dataChannel && ( */}
-      <>
+      {answer && connectionState !== 'connected' && (
+        <>
+          <p>Receiver's Answer</p>
+          {/* <QRCodeSVG value={answer} size={256} />
+          <p>Scan the QR code above on the Initiator's device</p> */}
+          <div>
+            {/* <QRCodeSVG value={offer} size={256} /> */}
+            <textarea rows={10} cols={50} defaultValue={answer} />
+          </div>
+        </>
+      )}
+
+      {/* {dataChannelState === 'open' && ( */}
+      <div>
         <input
           type='text'
           placeholder='Type a message'
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          value={messageInput}
+          onChange={(e) => setMessageInput(e.target.value)}
         />
         <button onClick={sendMessage}>Send</button>
-      </>
+      </div>
       {/* )} */}
 
       <ul>
         {messages.map((msg, i) => (
-          <li key={i}>{msg}</li>
+          <li key={i}>{msg.toString()}</li>
         ))}
       </ul>
     </div>
